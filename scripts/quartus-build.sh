@@ -37,6 +37,13 @@ require_qsf 'set_global_assignment -name NUM_PARALLEL_PROCESSORS 4'
 require_qsf 'set_global_assignment -name PARALLEL_SYNTHESIS OFF'
 require_qsf 'set_global_assignment -name AUTO_PARALLEL_SYNTHESIS OFF'
 
+# The stepwise flow below does not run flow hooks such as MiSTer's build_id.tcl;
+# run those explicitly before building rather than silently skipping them.
+if grep -Eq '^set_global_assignment -name (PRE|POST)_FLOW_SCRIPT_FILE' "$QSF"; then
+  echo "flow script assignments are not run by the stepwise flow" >&2
+  exit 1
+fi
+
 if [[ "$MODE" == apple ]]; then
   command -v container >/dev/null 2>&1 || {
     echo "Apple container is required" >&2
@@ -70,7 +77,16 @@ version_line="$(printf '%s\n' "$version" | grep -m1 'Version 17\.0\.0.*Build 595
   exit 1
 }
 
-"${RUN[@]}" quartus_sh --flow compile example
+# Run each stage directly instead of `quartus_sh --flow compile`. Under Rosetta,
+# quartus_map's RTL helper processes deadlock with their parent during larger
+# syntheses even with PARALLEL_SYNTHESIS OFF; --parallel=1 prevents the
+# helpers. The fitter keeps the pinned NUM_PARALLEL_PROCESSORS, which changes
+# placement and must match between local and CI builds. Docker uses the same
+# stages so both lanes run one flow.
+"${RUN[@]}" quartus_map --parallel=1 example
+"${RUN[@]}" quartus_fit example
+"${RUN[@]}" quartus_asm example
+"${RUN[@]}" quartus_sta example
 RBF="$ROOT/fpga/output_files/example.rbf"
 [[ -f "$RBF" ]] || {
   echo "Quartus completed without output_files/example.rbf" >&2
@@ -90,6 +106,7 @@ MANIFEST="$ROOT/fpga/output_files/build-manifest.txt"
   echo "format=apple-containers-example-quartus-v1"
   echo "source_commit=$(git -C "$ROOT" rev-parse HEAD)"
   echo "quartus_version=$version_line"
+  echo "quartus_flow=map(parallel=1),fit,asm,sta"
   echo "quartus_seed=2"
   echo "quartus_processors=4"
   echo "parallel_synthesis=off"

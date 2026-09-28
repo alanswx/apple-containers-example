@@ -9,7 +9,13 @@ CYCLONEV_URL="${QUARTUS_17_0_CYCLONEV_QDZ_URL:-https://downloads.intel.com/akdlm
 download() {
   local destination="$1" url="$2"
   if [[ ! -f "$destination" ]]; then
-    curl --fail --location --retry 5 --output "$destination.partial" "$url"
+    curl --fail --location --retry 5 --output "$destination.partial" "$url" || {
+      # Intel no longer serves the 17.0.0 files at their original URLs.
+      echo "Download failed: $url" >&2
+      echo "Copy the file to $destination, or set QUARTUS_17_0_RUN_URL and" >&2
+      echo "QUARTUS_17_0_CYCLONEV_QDZ_URL to a mirror you control." >&2
+      exit 1
+    }
     mv "$destination.partial" "$destination"
   fi
 }

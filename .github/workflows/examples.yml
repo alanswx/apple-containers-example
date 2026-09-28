@@ -38,6 +38,10 @@ jobs:
     timeout-minutes: 180
     env:
       QUARTUS_ACCEPT_EULA: "1"
+      # Intel's original 17.0.0 URLs now return 403; point these repository
+      # variables at a private mirror. Empty values use the Intel URLs.
+      QUARTUS_17_0_RUN_URL: ${{ vars.QUARTUS_17_0_RUN_URL }}
+      QUARTUS_17_0_CYCLONEV_QDZ_URL: ${{ vars.QUARTUS_17_0_CYCLONEV_QDZ_URL }}
     steps:
       - uses: easimon/maximize-build-space@master
         with:
